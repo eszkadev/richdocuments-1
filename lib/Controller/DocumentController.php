@@ -1020,9 +1020,15 @@ class DocumentController extends Controller {
 
 		if ($res['editor'] && $res['editor'] != '') {
 			$editor = $this->userManager->get($res['editor']);
-			$editorId = $editor->getUID();
-			$editorDisplayName = $editor->getDisplayName();
-			$editorEmail = $editor->getEMailAddress();
+			if ($editor) {
+				$editorId = $editor->getUID();
+				$editorDisplayName = $editor->getDisplayName();
+				$editorEmail = $editor->getEMailAddress();
+			} else {
+				$editorId = $res['editor'];
+				$editorDisplayName = $res['editor'];
+				$editorEmail = null;
+			}
 		} else {
 			$editorId = $this->l10n->t('remote user');
 			$editorDisplayName = $this->l10n->t('remote user');
@@ -1326,7 +1332,10 @@ class DocumentController extends Controller {
 	 * @return null|\OCP\Files\File
 	 */
 	private function getFileHandle($fileId, $owner, $editor) {
-		if ($editor && $editor != '') {
+		$isRemoteEditor = $editor && (strpos($editor, '@http://') !== false
+			|| strpos($editor, '@https://') !== false);
+
+		if ($editor && $editor != '' && $isRemoteEditor === false) {
 			$user = $this->userManager->get($editor);
 			if (!$user) {
 				$this->logger->warning('wopiPutFile(): No such user', ['app' => $this->appName]);
@@ -1420,7 +1429,6 @@ class DocumentController extends Controller {
 				} else {
 					$fileId = $share->getNodeId();
 				}
-				$currentUser = $this->uid;
 
 				$remoteWopiInfo = $this->getRemoteWopiInfo($remoteServer, $remoteServerToken);
 				if ($remoteWopiInfo === null) {
@@ -1438,6 +1446,10 @@ class DocumentController extends Controller {
 				if (!$remoteWopiInfo['canwrite']) {
 					$permissions = $permissions & ~ Constants::PERMISSION_UPDATE;
 				}
+
+				if (strpos($remoteServer, 'http://') === false && strpos($remoteServer, 'https://') === false)
+					$remoteServer = 'https://' . $remoteServer;
+				$currentUser = $remoteWopiInfo['editorUid'] . '@' . $remoteServer;
 
 				$wopiInfo = $this->getWopiInfoForRemoteShare($share, $doc['fileid'], $doc['version'], $doc['path'], $permissions, $currentUser, $doc['owner']);
 
